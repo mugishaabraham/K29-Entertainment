@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>K29 Entertainment - Admin Login</title>
+    <link rel="icon" type="image/jpeg" href="/logo.jpeg" />
+    <link rel="shortcut icon" href="/logo.jpeg" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-row">
+        <div class="header-brand-block">
+          <a href="/" class="brand">
+            <!--<span class="brand-badge"><img src="/k29.jpeg" alt="K29 logo" class="brand-logo" /></span>-->
+            <h1><span class="brand-k29">K2<span class="brand-k29-nine">9</span></span> <span class="brand-ent">Entertainment</span></h1>
+          </a>
+          <div class="brand-social-row">
+            <a href="https://www.youtube.com" target="_blank" rel="noopener noreferrer" aria-label="YouTube" title="YouTube" class="social-link brand-social-link youtube">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.5 3.5 12 3.5 12 3.5s-7.5 0-9.4.6A3 3 0 0 0 .5 6.2 31.5 31.5 0 0 0 0 12a31.5 31.5 0 0 0 .5 5.8 3 3 0 0 0 2.1 2.1c1.9.6 9.4.6 9.4.6s7.5 0 9.4-.6a3 3 0 0 0 2.1-2.1A31.5 31.5 0 0 0 24 12a31.5 31.5 0 0 0-.5-5.8ZM9.6 15.6V8.4L16 12l-6.4 3.6Z"/></svg>
+            </a>
+            <a href="https://www.instagram.com/carribean_p.r.i.n.c.e?igsh=c3k0bjl1cWl4MXNr" target="_blank" rel="noopener noreferrer" aria-label="Instagram" title="Instagram" class="social-link brand-social-link instagram">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 2h10a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5Zm0 2a3 3 0 0 0-3 3v10a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3V7a3 3 0 0 0-3-3H7Zm11 1.5a1.5 1.5 0 1 1-1.5 1.5A1.5 1.5 0 0 1 18 5.5ZM12 7a5 5 0 1 1-5 5 5 5 0 0 1 5-5Zm0 2a3 3 0 1 0 3 3 3 3 0 0 0-3-3Z"/></svg>
+            </a>
+            <a href="https://x.com" target="_blank" rel="noopener noreferrer" aria-label="X" title="X" class="social-link brand-social-link x">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.9 2H22l-6.8 7.8L23.2 22h-6.3l-4.9-6.5L6.4 22H3.3l7.3-8.4L.8 2h6.4l4.4 5.9L18.9 2Zm-1.1 18h1.7L6.7 4H4.9l12.9 16Z"/></svg>
+            </a>
+            <a href="https://www.facebook.com" target="_blank" rel="noopener noreferrer" aria-label="Facebook" title="Facebook" class="social-link brand-social-link facebook">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13.5 22v-8h2.7l.4-3h-3.1V9.1c0-.9.3-1.5 1.6-1.5h1.7V5a23 23 0 0 0-2.5-.1c-2.5 0-4.2 1.5-4.2 4.4V11H7.3v3h2.8v8h3.4Z"/></svg>
+            </a>
+            <a href="https://whatsapp.com/channel/0029Vb6zMV85fM5gHLZRq12r" target="_blank" rel="noopener noreferrer" aria-label="WhatsApp Channel" title="WhatsApp Channel" class="social-link brand-social-link whatsapp">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 3.5A11.9 11.9 0 0 0 1.7 17.7L0 24l6.5-1.7A12 12 0 1 0 20.5 3.5Zm-8.5 18a10 10 0 0 1-5.1-1.4l-.4-.2-3.9 1 1.1-3.8-.2-.4A10 10 0 1 1 12 21.5Zm5.8-7.4c-.3-.1-1.8-.9-2-1s-.4-.1-.6.1-.7 1-1 1.2-.5.2-.8 0a8 8 0 0 1-2.4-1.5 8.9 8.9 0 0 1-1.7-2.1c-.2-.3 0-.5.1-.7l.5-.6.2-.4a.7.7 0 0 0 0-.5c-.1-.1-.6-1.6-.9-2.2s-.5-.5-.7-.5h-.6c-.2 0-.5.1-.7.4-.2.2-1 1-1 2.5s1 2.9 1.2 3.1.2.4 2.5 3.3c.6.8 1.4 1.4 2.3 1.9 1.1.6 2.2.9 3 .9.9.1 1.7.1 2.4-.1.8-.2 2.3-.9 2.6-1.7.3-.8.3-1.5.2-1.7-.1-.2-.3-.2-.6-.3Z"/></svg>
+            </a>
+            <button type="button" id="liveAudioBtn" class="live-audio-btn" aria-pressed="false">
+              <span class="live-dot" aria-hidden="true"></span>
+              LIVE
+            </button>
+          </div>
+          <div id="liveAudioHost" class="live-audio-host" aria-hidden="true"></div>
+        </div>
+        <div class="header-tools">
+          <div class="kigali-clock" aria-live="polite">
+            <span class="clock-label" id="clockLabel" data-i18n="clockLabel">Kigali Time</span>
+            <strong id="kigaliClock">--:--:--</strong>
+            <select id="timezoneSelect" class="timezone-select" aria-label="Select timezone" data-i18n-aria-label="selectTimezone"></select>
+          </div>
+          <div class="language-switch">
+            <label for="languageSelect" data-i18n="languageLabel">Language</label>
+            <select id="languageSelect" class="lang-select" aria-label="Select language" data-i18n-aria-label="selectLanguage">
+              <option value="en" data-i18n="langEnglish">English</option>
+              <option value="rw" data-i18n="langKinyarwanda">Kinyarwanda</option>
+            </select>
+          </div>
+          <div class="quick-links">
+            <a class="quick-link" href="/" data-i18n="home">Home</a>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <section class="motto-banner" aria-label="K29 motto">
+      <div class="container">
+        <p>aho kubura amakuru wabura umunyu</p>
+      </div>
+    </section>
+
+    <main class="container login-layout">
+      <section class="panel login-panel">
+        <h2>Admin Login</h2>
+        <p class="meta">Enter your username and password to access the admin panel.</p>
+        <form id="loginForm" class="admin-form">
+          <label>Username<input id="username" autocomplete="username" required /></label>
+          <label>Password<input id="password" type="password" autocomplete="current-password" required /></label>
+          <button class="btn-primary" type="submit">Login</button>
+        </form>
+        <p id="loginError" class="login-error" aria-live="polite"></p>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-stack">
+        <div class="footer-grid">
+          <section class="footer-col">
+            <h3 class="footer-title">About Us</h3>
+            <p>K29 Entertainment delivers timely news, culture updates, and stories that matter to our community.</p>
+            <p>We focus on trusted reporting, clear storytelling, and impactful digital media.</p>
+          </section>
+
+          <section class="footer-col">
+            <h3 class="footer-title">Services</h3>
+            <ul class="footer-list">
+              <li>News Coverage & Reporting</li>
+              <li>Media Consultancy</li>
+              <li>Live Events (YouTube)</li>
+              <li>Entertainment & Lifestyle Features</li>
+            </ul>
+          </section>
+
+          <section class="footer-col">
+            <h3 class="footer-title">Contact Us</h3>
+            <p>Instagram: <a href="https://www.instagram.com/carribean_p.r.i.n.c.e?igsh=c3k0bjl1cWl4MXNr" target="_blank" rel="noopener noreferrer">@carribean_p.r.i.n.c.e</a></p>
+            <p>WhatsApp Channel: <a href="https://whatsapp.com/channel/0029Vb6zMV85fM5gHLZRq12r" target="_blank" rel="noopener noreferrer">Join Channel</a></p>
+            <p>Phone: <a href="tel:+250790153320">+250 790 153 320</a></p>
+          </section>
+        </div>
+
+        <div class="footer-bottom">
+          
+          <p class="footer-tagline">Aho kubura amakuru wabura umunyu.</p>
+        </div>
+      </div>
+    </footer>
+
+    <script src="/clock.js"></script>
+    <script src="/ui.js"></script>
+    <script src="/i18n.js"></script>
+    <script src="/admin-login.js"></script>
+  </body>
+</html>

@@ -1,0 +1,65 @@
+[
+  {
+    "id": 1,
+    "title": "Parliament Approves New National Budget Framework",
+    "category": "politics",
+    "author": "Editorial Desk",
+    "date": "2026-02-20",
+    "image": "https://images.unsplash.com/photo-1541872705-1f73c6400ec9?auto=format&fit=crop&w=1200&q=80",
+    "video": "",
+    "summary": "Lawmakers passed a multi-year framework focused on healthcare access, digital infrastructure, and SME tax incentives.",
+    "content": "The final vote followed weeks of negotiation among coalition members. Economists suggest implementation speed will define the plan's impact.",
+    "isPopular": true
+  },
+  {
+    "id": 2,
+    "title": "Top Afrobeats Artists Announce Global Summer Tour",
+    "category": "music",
+    "author": "Culture Reporter",
+    "date": "2026-02-18",
+    "image": "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&w=1200&q=80",
+    "video": "https://www.youtube.com/embed/dQw4w9WgXcQ",
+    "summary": "A joint tour will cover 22 cities across Europe, Africa, and North America, with ticket pre-sales opening this week.",
+    "content": "Organizers say the collaboration marks one of the biggest multi-artist live projects in the genre this year.",
+    "isPopular": true
+  },
+  {
+    "id": 3,
+    "title": "Streaming Platform Invests in Local Original Series",
+    "category": "entertainment",
+    "author": "Media Bureau",
+    "date": "2026-02-16",
+    "image": "http:/uploads/1772113150341-9bb5726807b7.png",
+    "video": "",
+    "summary": "A new slate of regional productions is expected to generate jobs for writers, editors, and production crews.",
+    "content": "Studio executives confirmed long-term commitments to talent development programs and post-production facilities.",
+    "inlineImages": [],
+    "isPopular": true
+  },
+  {
+    "id": 4,
+    "title": "Championship Race Tightens After Dramatic Weekend Results",
+    "category": "sports",
+    "author": "Sports Desk",
+    "date": "2026-02-21",
+    "image": "https://images.unsplash.com/photo-1461896836934-ffe607ba8211?auto=format&fit=crop&w=1200&q=80",
+    "video": "",
+    "summary": "Late goals and a surprise upset reshaped the title table, leaving just three points between the top teams.",
+    "content": "Analysts now expect the race to be decided in the final two rounds, with injuries likely to influence outcomes.",
+    "inlineImages": [],
+    "isPopular": true
+  },
+  {
+    "id": 5,
+    "title": "the leader of M23 fighter is now deseased",
+    "category": "politics",
+    "author": "K29 entertainment",
+    "date": "2026-02-25",
+    "image": "http:/uploads/1772113017005-e3a1aa54d156.png",
+    "video": "",
+    "summary": "he was sticked by a drone attach in Rubaya mining site",
+    "content": "He was found deceased in the dead bodies that found him dead in Rubaya site where he was assasinated by FARDC( the national soldiers of the democratic republic of congo).",
+    "inlineImages": [],
+    "isPopular": true
+  }
+]
