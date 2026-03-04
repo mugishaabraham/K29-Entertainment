@@ -342,23 +342,46 @@ function setupLiveAudio(liveAudioUrl) {
   if (!liveAudioBtn || !liveAudioHost) return;
   const videoId = extractYouTubeVideoId(liveAudioUrl);
   let playing = false;
+  let playerIframe = null;
+
+  function sendYouTubeCommand(func, args = []) {
+    if (!playerIframe || !playerIframe.contentWindow) return;
+    playerIframe.contentWindow.postMessage(
+      JSON.stringify({
+        event: 'command',
+        func,
+        args
+      }),
+      'https://www.youtube.com'
+    );
+  }
 
   function stopAudio() {
-    liveAudioHost.innerHTML = '';
+    // Keep the same player alive so stream time continues; only mute for "off".
+    sendYouTubeCommand('mute');
+    sendYouTubeCommand('setVolume', [0]);
     playing = false;
     liveAudioBtn.setAttribute('aria-pressed', 'false');
     liveAudioBtn.classList.remove('active');
   }
 
+  function ensurePlayer() {
+    if (!videoId || playerIframe) return;
+    playerIframe = document.createElement('iframe');
+    playerIframe.className = 'live-audio-frame';
+    playerIframe.allow = 'autoplay';
+    playerIframe.src = `https://www.youtube.com/embed/${encodeURIComponent(videoId)}?autoplay=1&enablejsapi=1&playsinline=1&controls=0&rel=0&modestbranding=1`;
+    playerIframe.title = 'Live audio stream';
+    liveAudioHost.innerHTML = '';
+    liveAudioHost.appendChild(playerIframe);
+  }
+
   function playAudio() {
     if (!videoId) return;
-    const iframe = document.createElement('iframe');
-    iframe.className = 'live-audio-frame';
-    iframe.allow = 'autoplay';
-    iframe.src = `https://www.youtube.com/embed/${encodeURIComponent(videoId)}?autoplay=1&loop=1&playlist=${encodeURIComponent(videoId)}&controls=0&rel=0&modestbranding=1`;
-    iframe.title = 'Live audio stream';
-    liveAudioHost.innerHTML = '';
-    liveAudioHost.appendChild(iframe);
+    ensurePlayer();
+    sendYouTubeCommand('unMute');
+    sendYouTubeCommand('setVolume', [100]);
+    sendYouTubeCommand('playVideo');
     playing = true;
     liveAudioBtn.setAttribute('aria-pressed', 'true');
     liveAudioBtn.classList.add('active');
