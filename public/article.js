@@ -6,6 +6,9 @@ function normalizeImageUrl(url) {
 
   try {
     const parsed = new URL(raw);
+    if ((parsed.protocol === 'http:' || parsed.protocol === 'https:') && parsed.hostname.toLowerCase() === 'uploads') {
+      return `/uploads${parsed.pathname.startsWith('/') ? parsed.pathname : `/${parsed.pathname}`}`;
+    }
     const host = parsed.hostname.toLowerCase();
     let fileId = '';
 
@@ -22,11 +25,17 @@ function normalizeImageUrl(url) {
     if (fileId) {
       return `/api/drive-image/${encodeURIComponent(fileId)}`;
     }
+    return raw;
   } catch {
+    if (raw.startsWith('/uploads/')) return raw;
+    if (raw.startsWith('uploads/')) return `/${raw}`;
+    if (raw.startsWith('./uploads/')) return `/${raw.slice(2)}`;
+    const uploadMatch = raw.match(/(?:^|\/)(uploads\/[^\s?#]+)/i);
+    if (uploadMatch) {
+      return `/${uploadMatch[1].replace(/^\/+/, '')}`;
+    }
     return raw;
   }
-
-  return raw;
 }
 
 function formatDate(dateString) {

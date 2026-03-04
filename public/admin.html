@@ -88,7 +88,7 @@
           </label>
           <label>Author<input id="author" placeholder="K29 Desk" /></label>
           <label>Date<input id="date" type="date" /></label>
-          <label>Image URL<input id="image" type="url" placeholder="https://..." /></label>
+          <label>Image URL<input id="image" type="text" placeholder="https://... or /uploads/..." /></label>
           <div class="inline-images-editor">
             <p class="meta">Or upload image from your device</p>
             <input id="imageUpload" type="file" accept="image/png,image/jpeg,image/gif,image/webp" />
@@ -102,7 +102,7 @@
             <p class="meta">Set "Paragraph #" to control where each image appears inside the content.</p>
           </div>
           <label>Video URL (optional)
-            <input id="video" type="url" placeholder="YouTube embed URL or MP4 URL" />
+            <input id="video" type="text" placeholder="YouTube link, embed URL, or MP4 URL" />
           </label>
           <label class="checkbox-field">
             <input id="isPopular" type="checkbox" />
@@ -124,7 +124,7 @@
           <h3>Live Sound Settings</h3>
           <label>
             Live YouTube Link
-            <input id="liveAudioUrl" type="url" placeholder="https://www.youtube.com/watch?v=..." />
+            <input id="liveAudioUrl" type="text" placeholder="YouTube link or embed URL" />
           </label>
           <div class="admin-actions">
             <button type="button" id="saveLiveAudioBtn" class="btn-secondary">Save Live Link</button>
