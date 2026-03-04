@@ -420,7 +420,32 @@ function normalizeArticlePayload(payload, isUpdate = false) {
 }
 
 function toClientImageUrl(rawUrl) {
-  const url = String(rawUrl || '').trim();
+  const url = String(rawUrl || '').trim().replace(/^['"\s]+|['"\s]+$/g, '');
+  if (!url) return '';
+
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+      if (parsed.hostname.toLowerCase() === 'uploads') {
+        return `/uploads${parsed.pathname.startsWith('/') ? parsed.pathname : `/${parsed.pathname}`}`;
+      }
+      const fileId = extractDriveFileId(url);
+      if (!fileId) return url;
+      return `/api/drive-image/${encodeURIComponent(fileId)}`;
+    }
+  } catch {
+    // Handle malformed and relative URLs below.
+  }
+
+  if (url.startsWith('/uploads/')) return url;
+  if (url.startsWith('uploads/')) return `/${url}`;
+  if (url.startsWith('./uploads/')) return `/${url.slice(2)}`;
+
+  const uploadMatch = url.match(/(?:^|\/)(uploads\/[^\s?#]+)/i);
+  if (uploadMatch) {
+    return `/${uploadMatch[1].replace(/^\/+/, '')}`;
+  }
+
   const fileId = extractDriveFileId(url);
   if (!fileId) return url;
   return `/api/drive-image/${encodeURIComponent(fileId)}`;
