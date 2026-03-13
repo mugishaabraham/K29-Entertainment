@@ -663,15 +663,6 @@ async function readUpload(env, fileName) {
   return memoryStore.uploads.get(fileName) || null;
 }
 
-function requireConfig(env) {
-  if (!env.ADMIN_USERNAME || !env.ADMIN_PASSWORD) {
-    return jsonResponse(500, {
-      error: 'Missing Cloudflare environment variables: ADMIN_USERNAME and ADMIN_PASSWORD.'
-    });
-  }
-  return null;
-}
-
 export async function handleUploadsRequest(context) {
   const { request, env } = context;
   const url = new URL(request.url);
@@ -697,9 +688,6 @@ export async function handleUploadsRequest(context) {
 
 export async function handleApiRequest(context) {
   const { request, env } = context;
-  const configError = requireConfig(env);
-  if (configError) return configError;
-
   const method = request.method.toUpperCase();
   const url = new URL(request.url);
   const pathname = url.pathname;
