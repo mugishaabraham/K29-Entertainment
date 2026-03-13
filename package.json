@@ -4,9 +4,19 @@
   "description": "Professional full-stack news website with ad-ready layout",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "deploy": "wrangler deploy",
+    "preview": "wrangler dev"
   },
-  "keywords": ["news", "backend", "frontend", "ads"],
+  "keywords": [
+    "news",
+    "backend",
+    "frontend",
+    "ads"
+  ],
   "author": "",
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "wrangler": "^4.73.0"
+  }
 }
