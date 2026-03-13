@@ -706,6 +706,16 @@ export async function handleApiRequest(context) {
     getSession(request, env)
   ]);
 
+  if (pathname === '/api/health' && method === 'GET') {
+    return jsonResponse(200, {
+      ok: true,
+      service: 'k29-api',
+      hasDataKV: Boolean(getDataNamespace(env)),
+      hasSessionKV: Boolean(getSessionNamespace(env)),
+      hasAdminEnv: Boolean(env.ADMIN_USERNAME && env.ADMIN_PASSWORD)
+    });
+  }
+
   if (pathname === '/api/categories' && method === 'GET') {
     return jsonResponse(200, { categories: getCategories(articles) });
   }

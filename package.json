@@ -5,8 +5,9 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "deploy": "wrangler deploy",
-    "preview": "wrangler dev"
+    "deploy": "npx wrangler pages deploy public --project-name k29entertainment",
+    "preview": "npx wrangler pages dev public",
+    "cf:build:functions": "npx wrangler pages functions build --outdir .wrangler/functions-build"
   },
   "keywords": [
     "news",

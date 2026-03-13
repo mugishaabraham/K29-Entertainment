@@ -109,8 +109,18 @@ function formatDate(dateString) {
 async function fetchJson(url, options) {
   const res = await fetch(url, options);
   if (!res.ok) {
-    const errorBody = await res.text();
-    throw new Error(errorBody || `Request failed: ${res.status}`);
+    let message = `Request failed: ${res.status}`;
+    const raw = await res.text();
+    try {
+      const data = JSON.parse(raw);
+      message = data.error || message;
+    } catch {
+      message = raw || message;
+    }
+    if (res.status === 404 && String(url).startsWith('/api/')) {
+      throw new Error('API route not found (404). Deploy with Cloudflare Pages Functions enabled.');
+    }
+    throw new Error(message);
   }
   return res.json();
 }

@@ -53,7 +53,12 @@ function readId() {
 
 async function fetchJson(url) {
   const res = await fetch(url);
-  if (!res.ok) throw new Error(`Request failed: ${res.status}`);
+  if (!res.ok) {
+    if (res.status === 404 && String(url).startsWith('/api/')) {
+      throw new Error('API route not found (404). Deploy with Cloudflare Pages Functions enabled.');
+    }
+    throw new Error(`Request failed: ${res.status}`);
+  }
   return res.json();
 }
 

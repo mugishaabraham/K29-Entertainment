@@ -100,9 +100,26 @@ Deploy this repo root (not only `public/`).
 
 Cloudflare will serve static files from `public/` and run Functions from `functions/`.
 
+Recommended CLI command:
+
+```bash
+npm run deploy
+```
+
+This runs:
+
+```bash
+wrangler pages deploy public --project-name k29entertainment
+```
+
+Do not use `wrangler deploy` for this app. That deploy mode can skip Pages Functions and cause `/api/*` 404 errors.
+
 ### 4. Verify
 
 After deploy, test:
 - `https://<your-domain>/api/categories` returns JSON.
+- `https://<your-domain>/api/health` returns JSON with `ok: true`.
 - Login at `/admin-login.html` works.
 - Upload image from admin panel works (stored in KV and served from `/uploads/...`).
+
+If `/api/*` returns `404`, Functions were not deployed for that release. Redeploy with `npm run deploy` or a Git-connected Pages build from repo root.

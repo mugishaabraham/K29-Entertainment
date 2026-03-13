@@ -8,15 +8,19 @@ async function fetchJson(url, options = {}) {
   try {
     res = await fetch(url, options);
   } catch {
-    throw new Error('Backend not reachable. Run `npm start` and open http://localhost:3000/admin-login.html');
+    throw new Error('Backend not reachable. Verify Cloudflare Pages Functions are deployed.');
   }
   if (!res.ok) {
     let message = `Request failed: ${res.status}`;
+    const raw = await res.text();
     try {
-      const data = await res.json();
+      const data = JSON.parse(raw);
       message = data.error || message;
     } catch {
-      // no-op
+      message = raw || message;
+    }
+    if (res.status === 404 && String(url).startsWith('/api/')) {
+      message = 'API route not found (404). Deploy with Cloudflare Pages Functions enabled.';
     }
     throw new Error(message);
   }
