@@ -12,6 +12,14 @@ const uploadImageStatus = document.getElementById('uploadImageStatus');
 const liveAudioUrlInput = document.getElementById('liveAudioUrl');
 const saveLiveAudioBtn = document.getElementById('saveLiveAudioBtn');
 const liveAudioStatus = document.getElementById('liveAudioStatus');
+const sessionRoleMeta = document.getElementById('sessionRoleMeta');
+const saveStoryBtn = form.querySelector('button[type="submit"]');
+const userManagementBlock = document.getElementById('userManagementBlock');
+const newUsernameInput = document.getElementById('newUsername');
+const newPasswordInput = document.getElementById('newPassword');
+const createUserBtn = document.getElementById('createUserBtn');
+const createUserStatus = document.getElementById('createUserStatus');
+const userList = document.getElementById('userList');
 const preferredCategoryOrder = ['all', 'entertainment', 'politics', 'music', 'sports', 'religion', 'movies'];
 
 const fields = {
@@ -26,6 +34,9 @@ const fields = {
   summary: document.getElementById('summary'),
   content: document.getElementById('content')
 };
+
+let currentUser = null;
+let currentArticles = [];
 
 function normalizeImageUrl(url) {
   const raw = String(url || '').trim().replace(/^['"\s]+|['"\s]+$/g, '');
@@ -187,11 +198,19 @@ function setInlineImages(images = []) {
 }
 
 function formatDate(dateString) {
+  if (!dateString) return 'No date';
   return new Date(dateString).toLocaleDateString(undefined, {
     year: 'numeric',
     month: 'short',
     day: 'numeric'
   });
+}
+
+function statusLabel(status) {
+  const clean = String(status || 'published').toLowerCase();
+  if (clean === 'pending') return 'Pending Approval';
+  if (clean === 'rejected') return 'Cancelled';
+  return 'Published';
 }
 
 async function fetchJson(url, options = {}) {
@@ -213,7 +232,7 @@ function clearForm() {
   form.reset();
   fields.id.value = '';
   setInlineImages([]);
-  formTitle.textContent = 'Create New Story';
+  formTitle.textContent = currentUser && currentUser.isMain ? 'Create New Story' : 'Submit Story for Approval';
   if (uploadImageStatus) uploadImageStatus.textContent = '';
 }
 
@@ -304,31 +323,110 @@ async function togglePopular(id, nextState) {
   });
 }
 
+async function reviewArticle(id, action) {
+  return fetchJson(`/api/admin/news/${id}/${action}`, {
+    method: 'POST'
+  });
+}
+
+async function deleteUser(username) {
+  return fetchJson(`/api/admin/users/${encodeURIComponent(username)}`, {
+    method: 'DELETE'
+  });
+}
+
+function renderUserList(users) {
+  if (!userList) return;
+  userList.innerHTML = '';
+
+  if (!users.length) {
+    userList.innerHTML = '<p class="meta">No contributor accounts yet.</p>';
+    return;
+  }
+
+  users.forEach((item) => {
+    const row = document.createElement('div');
+    row.className = 'admin-row';
+    const active = item.active !== false;
+    row.innerHTML = `
+      <div>
+        <strong>${item.username}</strong>
+        <p class="meta">Created ${formatDate(item.createdAt)} by ${item.createdBy || 'main admin'} • <span class="status-badge ${active ? 'status-published' : 'status-rejected'}">${active ? 'Active' : 'Inactive'}</span></p>
+      </div>
+      <div class="admin-row-actions">
+        <button class="btn-danger" type="button" data-action="delete-user" data-username="${item.username}">Delete</button>
+      </div>
+    `;
+    userList.appendChild(row);
+  });
+
+  userList.querySelectorAll('button[data-action="delete-user"]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const username = String(btn.dataset.username || '').trim();
+      if (!username) return;
+      if (!window.confirm(`Delete account "${username}"?`)) return;
+      try {
+        btn.disabled = true;
+        await deleteUser(username);
+        createUserStatus.textContent = `Deleted account: ${username}`;
+        await loadUsers();
+      } catch (error) {
+        createUserStatus.textContent = error.message;
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  });
+}
+
 function renderList(articles) {
-  adminMeta.textContent = `${articles.length} stor${articles.length === 1 ? 'y' : 'ies'} in system`;
+  const pendingCount = articles.filter((item) => String(item.status).toLowerCase() === 'pending').length;
+  const publishedCount = articles.filter((item) => String(item.status).toLowerCase() === 'published').length;
+  adminMeta.textContent = `${articles.length} stor${articles.length === 1 ? 'y' : 'ies'} • ${pendingCount} pending • ${publishedCount} published`;
   adminList.innerHTML = '';
 
   if (!articles.length) {
-    adminList.innerHTML = '<p>No stories yet. Create your first story using the form.</p>';
+    adminList.innerHTML = '<p>No stories yet. Use the form to create or submit one.</p>';
     return;
   }
 
   articles.forEach((article) => {
     const row = document.createElement('div');
     row.className = 'admin-row';
+    const status = String(article.status || 'published').toLowerCase();
+    const canEdit = currentUser && (currentUser.isMain || status !== 'published');
+    const canDelete = canEdit;
+
+    const actionButtons = [];
+    if (status === 'published') {
+      actionButtons.push(`<a class="btn-link" href="/article.html?id=${article.id}" target="_blank" rel="noopener noreferrer">View</a>`);
+    }
+
+    if (currentUser && currentUser.isMain && status === 'published') {
+      actionButtons.push(
+        `<button class="btn-secondary popular-toggle-btn ${article.isPopular ? 'is-popular' : ''}" type="button" data-action="toggle-popular" data-id="${article.id}" data-next="${article.isPopular ? 'false' : 'true'}">${article.isPopular ? 'Unmark Popular' : 'Mark Popular'}</button>`
+      );
+    }
+
+    if (currentUser && currentUser.isMain && status === 'pending') {
+      actionButtons.push(`<button class="btn-primary" type="button" data-action="approve" data-id="${article.id}">Approve</button>`);
+      actionButtons.push(`<button class="btn-danger" type="button" data-action="cancel" data-id="${article.id}">Cancel</button>`);
+    }
+
+    if (canEdit) {
+      actionButtons.push(`<button class="btn-secondary" type="button" data-action="edit" data-id="${article.id}">Edit</button>`);
+    }
+
+    if (canDelete) {
+      actionButtons.push(`<button class="btn-danger" type="button" data-action="delete" data-id="${article.id}">Delete</button>`);
+    }
+
     row.innerHTML = `
       <div>
-        <strong>${article.title}</strong><span class="popular-indicator">${article.isPopular ? ' <span class="popular-badge">Most Popular</span>' : ''}</span>
-        <p class="meta">${article.category} • ${formatDate(article.date)} • ${article.author || 'K29 Desk'}</p>
+        <strong>${article.title}</strong><span class="popular-indicator">${article.isPopular && status === 'published' ? ' <span class="popular-badge">Most Popular</span>' : ''}</span>
+        <p class="meta">${article.category} • ${formatDate(article.date)} • ${article.author || 'K29 Desk'} • <span class="status-badge status-${status}">${statusLabel(status)}</span></p>
       </div>
-      <div class="admin-row-actions">
-        <a class="btn-link" href="/article.html?id=${article.id}" target="_blank" rel="noopener noreferrer">View</a>
-        <button class="btn-secondary popular-toggle-btn ${article.isPopular ? 'is-popular' : ''}" type="button" data-action="toggle-popular" data-id="${article.id}" data-next="${article.isPopular ? 'false' : 'true'}">
-          ${article.isPopular ? 'Unmark Popular' : 'Mark Popular'}
-        </button>
-        <button class="btn-secondary" type="button" data-action="edit" data-id="${article.id}">Edit</button>
-        <button class="btn-danger" type="button" data-action="delete" data-id="${article.id}">Delete</button>
-      </div>
+      <div class="admin-row-actions">${actionButtons.join('')}</div>
     `;
     adminList.appendChild(row);
   });
@@ -336,7 +434,7 @@ function renderList(articles) {
   adminList.querySelectorAll('button[data-action="edit"]').forEach((btn) => {
     btn.addEventListener('click', () => {
       const id = Number(btn.dataset.id);
-      const selected = articles.find((a) => a.id === id);
+      const selected = currentArticles.find((a) => a.id === id);
       if (selected) fillForm(selected);
     });
   });
@@ -370,7 +468,7 @@ function renderList(articles) {
             indicator.innerHTML = isPopular ? ' <span class="popular-badge">Most Popular</span>' : '';
           }
         }
-        const selected = articles.find((a) => Number(a.id) === id);
+        const selected = currentArticles.find((a) => Number(a.id) === id);
         if (selected) selected.isPopular = isPopular;
         if (String(fields.id.value) === String(id)) {
           fields.isPopular.checked = isPopular;
@@ -382,11 +480,42 @@ function renderList(articles) {
       }
     });
   });
+
+  adminList.querySelectorAll('button[data-action="approve"]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const id = Number(btn.dataset.id);
+      try {
+        btn.disabled = true;
+        await reviewArticle(id, 'approve');
+        await loadArticles();
+      } catch (error) {
+        window.alert(error.message);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  });
+
+  adminList.querySelectorAll('button[data-action="cancel"]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const id = Number(btn.dataset.id);
+      try {
+        btn.disabled = true;
+        await reviewArticle(id, 'cancel');
+        await loadArticles();
+      } catch (error) {
+        window.alert(error.message);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  });
 }
 
 async function loadArticles() {
-  const data = await fetchJson('/api/news?category=all');
-  renderList(data.articles);
+  const data = await fetchJson('/api/news?category=all&includeUnpublished=1');
+  currentArticles = data.articles || [];
+  renderList(currentArticles);
 }
 
 async function loadSettings() {
@@ -430,8 +559,61 @@ async function loadCategoryOptions() {
     const data = await fetchJson('/api/categories');
     setCategoryOptions(data.categories || []);
   } catch {
-    // Preserve static HTML options if categories API is unavailable.
     setCategoryOptions([]);
+  }
+}
+
+function applyRoleUi() {
+  if (!currentUser) return;
+  if (currentUser.isMain) {
+    sessionRoleMeta.textContent = `Logged in as main admin (${currentUser.username}). Stories publish immediately, and you can approve or cancel reporter submissions.`;
+    formTitle.textContent = 'Create New Story';
+    saveStoryBtn.textContent = 'Save Story';
+    fields.isPopular.disabled = false;
+    if (userManagementBlock) userManagementBlock.hidden = false;
+  } else {
+    sessionRoleMeta.textContent = `Logged in as contributor (${currentUser.username}). New and edited stories are submitted for approval before they appear on the website.`;
+    formTitle.textContent = 'Submit Story for Approval';
+    saveStoryBtn.textContent = 'Submit Story';
+    fields.isPopular.checked = false;
+    fields.isPopular.disabled = true;
+    if (userManagementBlock) userManagementBlock.hidden = true;
+  }
+}
+
+async function loadUsers() {
+  if (!currentUser || !currentUser.isMain) return;
+  const data = await fetchJson('/api/admin/users');
+  renderUserList(data.users || []);
+}
+
+async function createUser() {
+  if (!currentUser || !currentUser.isMain) return;
+
+  const username = String(newUsernameInput.value || '').trim();
+  const password = String(newPasswordInput.value || '').trim();
+  if (!username || !password) {
+    createUserStatus.textContent = 'Username and password are required.';
+    return;
+  }
+
+  createUserBtn.disabled = true;
+  createUserStatus.textContent = 'Creating user...';
+
+  try {
+    await fetchJson('/api/admin/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+    newUsernameInput.value = '';
+    newPasswordInput.value = '';
+    createUserStatus.textContent = 'Contributor account created.';
+    await loadUsers();
+  } catch (error) {
+    createUserStatus.textContent = error.message;
+  } finally {
+    createUserBtn.disabled = false;
   }
 }
 
@@ -441,6 +623,7 @@ async function ensureAuthenticated() {
     window.location.href = '/admin-login.html';
     return false;
   }
+  currentUser = data.user || null;
   return true;
 }
 
@@ -473,6 +656,9 @@ if (uploadImageBtn) {
 if (saveLiveAudioBtn) {
   saveLiveAudioBtn.addEventListener('click', saveLiveAudioSettings);
 }
+if (createUserBtn) {
+  createUserBtn.addEventListener('click', createUser);
+}
 
 logoutBtn.addEventListener('click', async () => {
   try {
@@ -487,9 +673,13 @@ async function init() {
   try {
     const ok = await ensureAuthenticated();
     if (!ok) return;
+    applyRoleUi();
     await loadSettings();
     await loadCategoryOptions();
     await loadArticles();
+    if (currentUser && currentUser.isMain) {
+      await loadUsers();
+    }
   } catch (error) {
     adminList.innerHTML = `<p>${error.message}</p>`;
   }

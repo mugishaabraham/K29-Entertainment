@@ -1091,6 +1091,34 @@ body.night-mode .site-footer::after {
   vertical-align: middle;
 }
 
+.status-badge {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 0.1rem 0.46rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  vertical-align: middle;
+}
+
+.status-pending {
+  background: #fff4d6;
+  color: #8f5a00;
+  border: 1px solid #efca82;
+}
+
+.status-published {
+  background: #dff7e8;
+  color: #0a6c3b;
+  border: 1px solid #8cd4ab;
+}
+
+.status-rejected {
+  background: #fde6eb;
+  color: #9e173e;
+  border: 1px solid #eba2b5;
+}
+
 .inline-images-editor {
   display: grid;
   gap: 0.5rem;
@@ -1118,6 +1146,10 @@ body.night-mode .site-footer::after {
 
 .admin-settings-block h3 {
   margin: 0;
+}
+
+.admin-settings-block h4 {
+  margin: 0.35rem 0 0;
 }
 
 .admin-settings-block label {

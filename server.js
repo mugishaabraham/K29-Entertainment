@@ -10,6 +10,7 @@ const UPLOADS_DIR = path.join(PUBLIC_DIR, 'uploads');
 const DATA_DIR = path.join(__dirname, 'data');
 const DATA_FILE = path.join(DATA_DIR, 'articles.json');
 const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
+const USERS_FILE = path.join(DATA_DIR, 'users.json');
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'k29';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'gisenyi@12';
 const SESSION_COOKIE_NAME = 'k29_admin_session';
@@ -114,6 +115,9 @@ function ensureDataFile() {
   if (!fs.existsSync(SETTINGS_FILE)) {
     fs.writeFileSync(SETTINGS_FILE, JSON.stringify({ liveAudioUrl: '' }, null, 2), 'utf8');
   }
+  if (!fs.existsSync(USERS_FILE)) {
+    fs.writeFileSync(USERS_FILE, '[]', 'utf8');
+  }
 }
 
 function readArticles() {
@@ -151,6 +155,47 @@ function writeSettings(settings) {
     liveAudioUrl: String((settings && settings.liveAudioUrl) || '').trim()
   };
   fs.writeFileSync(SETTINGS_FILE, JSON.stringify(normalized, null, 2), 'utf8');
+}
+
+function readUsers() {
+  ensureDataFile();
+  try {
+    const raw = fs.readFileSync(USERS_FILE, 'utf8');
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    console.error('Failed to read users:', error.message);
+    return [];
+  }
+}
+
+function writeUsers(users) {
+  fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2), 'utf8');
+}
+
+function normalizeUsername(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]/g, '');
+}
+
+function hashPassword(password) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.pbkdf2Sync(String(password), salt, 120000, 64, 'sha512').toString('hex');
+  return `${salt}:${hash}`;
+}
+
+function verifyPassword(password, stored) {
+  const raw = String(stored || '');
+  const [salt, savedHash] = raw.split(':');
+  if (!salt || !savedHash) return false;
+  const hash = crypto.pbkdf2Sync(String(password), salt, 120000, 64, 'sha512').toString('hex');
+  try {
+    return crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(savedHash, 'hex'));
+  } catch {
+    return false;
+  }
 }
 
 function getCategories(articles) {
@@ -208,17 +253,22 @@ function parseCookies(req) {
 
 function cleanupSessions() {
   const now = Date.now();
-  sessions.forEach((expiresAt, token) => {
-    if (expiresAt <= now) {
+  sessions.forEach((session, token) => {
+    if (!session || Number(session.expiresAt) <= now) {
       sessions.delete(token);
     }
   });
 }
 
-function createSession() {
+function createSession(user) {
   cleanupSessions();
   const token = crypto.randomBytes(24).toString('hex');
-  sessions.set(token, Date.now() + SESSION_TTL_MS);
+  sessions.set(token, {
+    expiresAt: Date.now() + SESSION_TTL_MS,
+    username: String((user && user.username) || '').trim().toLowerCase(),
+    role: String((user && user.role) || 'contributor').trim().toLowerCase(),
+    isMain: Boolean(user && user.isMain)
+  });
   return token;
 }
 
@@ -236,17 +286,21 @@ function clearSessionCookie(res) {
   res.setHeader('Set-Cookie', `${SESSION_COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secure}`);
 }
 
-function isAuthenticated(req) {
+function getSessionFromRequest(req) {
   cleanupSessions();
   const cookies = parseCookies(req);
   const token = cookies[SESSION_COOKIE_NAME];
-  if (!token) return false;
-  const expiresAt = sessions.get(token);
-  if (!expiresAt || expiresAt <= Date.now()) {
+  if (!token) return null;
+  const session = sessions.get(token);
+  if (!session || Number(session.expiresAt) <= Date.now()) {
     sessions.delete(token);
-    return false;
+    return null;
   }
-  return true;
+  return { token, ...session };
+}
+
+function isAuthenticated(req) {
+  return Boolean(getSessionFromRequest(req));
 }
 
 function parseJsonBody(req) {
@@ -454,6 +508,7 @@ function toClientImageUrl(rawUrl) {
 function toClientArticle(article) {
   const base = { ...article };
   base.isPopular = Boolean(base.isPopular);
+  base.status = String(base.status || 'published');
   base.image = toClientImageUrl(base.image);
   if (Array.isArray(base.inlineImages)) {
     base.inlineImages = base.inlineImages.map((item) => ({
@@ -464,9 +519,49 @@ function toClientArticle(article) {
   return base;
 }
 
+function getArticleStatus(article) {
+  return String((article && article.status) || 'published').toLowerCase();
+}
+
+function isPublishedArticle(article) {
+  return getArticleStatus(article) === 'published';
+}
+
+function canViewArticle(article, session) {
+  if (!article) return false;
+  if (isPublishedArticle(article)) return true;
+  if (!session) return false;
+  if (session.isMain) return true;
+  return String(article.createdBy || '').toLowerCase() === String(session.username || '').toLowerCase();
+}
+
+function canMutateArticle(article, session) {
+  if (!article || !session) return false;
+  if (session.isMain) return true;
+  const owner = String(article.createdBy || '').toLowerCase();
+  const sameOwner = owner && owner === String(session.username || '').toLowerCase();
+  const status = getArticleStatus(article);
+  return sameOwner && (status === 'pending' || status === 'rejected');
+}
+
+function canDeleteArticle(article, session) {
+  return canMutateArticle(article, session);
+}
+
+function clearUserSessions(username) {
+  const target = normalizeUsername(username);
+  if (!target) return;
+  sessions.forEach((sessionData, token) => {
+    if (normalizeUsername(sessionData && sessionData.username) === target) {
+      sessions.delete(token);
+    }
+  });
+}
+
 async function handleApi(req, res, url) {
   const articles = readArticles();
   const settings = readSettings();
+  const session = getSessionFromRequest(req);
 
   if (req.method === 'OPTIONS') {
     return sendJson(res, 204, {});
@@ -509,20 +604,47 @@ async function handleApi(req, res, url) {
   }
 
   if (url.pathname === '/api/admin/session' && req.method === 'GET') {
-    return sendJson(res, 200, { authenticated: isAuthenticated(req) });
+    if (!session) {
+      return sendJson(res, 200, { authenticated: false });
+    }
+    return sendJson(res, 200, {
+      authenticated: true,
+      user: {
+        username: session.username,
+        role: session.role,
+        isMain: session.isMain
+      }
+    });
   }
 
   if (url.pathname === '/api/admin/login' && req.method === 'POST') {
     try {
       const payload = await parseJsonBody(req);
-      const username = String(payload.username || '').trim().toLowerCase();
-      const password = String(payload.password || '').trim();
+      const username = normalizeUsername(payload.username);
+      const password = String(payload.password || '');
+      const mainUsername = normalizeUsername(ADMIN_USERNAME);
 
-      if (username !== ADMIN_USERNAME.toLowerCase() || password !== ADMIN_PASSWORD) {
+      if (username === mainUsername && password === ADMIN_PASSWORD) {
+        const token = createSession({
+          username: mainUsername,
+          role: 'main',
+          isMain: true
+        });
+        setSessionCookie(res, token);
+        return sendJson(res, 200, { ok: true });
+      }
+
+      const users = readUsers();
+      const matched = users.find((item) => normalizeUsername(item && item.username) === username);
+      if (!matched || matched.active === false || !verifyPassword(password, matched.passwordHash)) {
         return sendJson(res, 401, { error: 'Invalid username or password.' });
       }
 
-      const token = createSession();
+      const token = createSession({
+        username,
+        role: 'contributor',
+        isMain: false
+      });
       setSessionCookie(res, token);
       return sendJson(res, 200, { ok: true });
     } catch (error) {
@@ -531,17 +653,119 @@ async function handleApi(req, res, url) {
   }
 
   if (url.pathname === '/api/admin/logout' && req.method === 'POST') {
-    const cookies = parseCookies(req);
-    const token = cookies[SESSION_COOKIE_NAME];
-    if (token) {
-      sessions.delete(token);
+    if (session && session.token) {
+      sessions.delete(session.token);
     }
     clearSessionCookie(res);
     return sendJson(res, 200, { ok: true });
   }
 
+  if (url.pathname === '/api/admin/users' && req.method === 'GET') {
+    if (!session || !session.isMain) {
+      return sendJson(res, 401, { error: 'Unauthorized' });
+    }
+    const users = readUsers()
+      .map((item) => ({
+        username: normalizeUsername(item && item.username),
+        active: item && item.active !== false,
+        createdAt: String((item && item.createdAt) || ''),
+        createdBy: String((item && item.createdBy) || '')
+      }))
+      .filter((item) => item.username)
+      .sort((a, b) => a.username.localeCompare(b.username));
+    return sendJson(res, 200, { users });
+  }
+
+  if (url.pathname === '/api/admin/users' && req.method === 'POST') {
+    if (!session || !session.isMain) {
+      return sendJson(res, 401, { error: 'Unauthorized' });
+    }
+    if (IS_VERCEL) {
+      return vercelWriteBlocked(res);
+    }
+
+    try {
+      const payload = await parseJsonBody(req);
+      const username = normalizeUsername(payload.username);
+      const password = String(payload.password || '').trim();
+
+      if (!username || username.length < 3) {
+        return sendJson(res, 400, { error: 'Username must be at least 3 characters.' });
+      }
+      if (password.length < 4) {
+        return sendJson(res, 400, { error: 'Password must be at least 4 characters.' });
+      }
+      if (username === normalizeUsername(ADMIN_USERNAME)) {
+        return sendJson(res, 400, { error: 'That username is reserved.' });
+      }
+
+      const users = readUsers();
+      const exists = users.some((item) => normalizeUsername(item && item.username) === username);
+      if (exists) {
+        return sendJson(res, 409, { error: 'Username already exists.' });
+      }
+
+      const created = {
+        username,
+        role: 'contributor',
+        passwordHash: hashPassword(password),
+        active: true,
+        createdAt: new Date().toISOString(),
+        createdBy: session.username
+      };
+      users.push(created);
+      writeUsers(users);
+
+      return sendJson(res, 201, {
+        user: {
+          username: created.username,
+          active: created.active,
+          createdAt: created.createdAt,
+          createdBy: created.createdBy
+        }
+      });
+    } catch (error) {
+      return sendJson(res, 400, { error: error.message });
+    }
+  }
+
+  const userPathMatch = url.pathname.match(/^\/api\/admin\/users\/([^/]+)$/);
+  if (userPathMatch && req.method === 'DELETE') {
+    if (!session || !session.isMain) {
+      return sendJson(res, 401, { error: 'Unauthorized' });
+    }
+    if (IS_VERCEL) {
+      return vercelWriteBlocked(res);
+    }
+
+    const targetUsername = normalizeUsername(decodeURIComponent(userPathMatch[1] || ''));
+    if (!targetUsername) {
+      return sendJson(res, 400, { error: 'Invalid username.' });
+    }
+    if (targetUsername === normalizeUsername(ADMIN_USERNAME)) {
+      return sendJson(res, 400, { error: 'Main admin account cannot be deleted.' });
+    }
+
+    const users = readUsers();
+    const index = users.findIndex((item) => normalizeUsername(item && item.username) === targetUsername);
+    if (index < 0) {
+      return notFound(res);
+    }
+
+    const deleted = users.splice(index, 1)[0];
+    writeUsers(users);
+    clearUserSessions(targetUsername);
+    return sendJson(res, 200, {
+      deleted: {
+        username: normalizeUsername(deleted && deleted.username),
+        createdAt: String((deleted && deleted.createdAt) || ''),
+        createdBy: String((deleted && deleted.createdBy) || '')
+      }
+    });
+  }
+
   if (url.pathname === '/api/admin/settings' && req.method === 'PUT') {
-    if (!isAuthenticated(req)) {
+    if (!session) {
       return sendJson(res, 401, { error: 'Unauthorized' });
     }
     if (IS_VERCEL) {
@@ -562,7 +786,7 @@ async function handleApi(req, res, url) {
   }
 
   if (url.pathname === '/api/admin/upload-image' && req.method === 'POST') {
-    if (!isAuthenticated(req)) {
+    if (!session) {
       return sendJson(res, 401, { error: 'Unauthorized' });
     }
     if (IS_VERCEL) {
@@ -589,34 +813,96 @@ async function handleApi(req, res, url) {
     }
   }
 
+  const moderationMatch = url.pathname.match(/^\/api\/admin\/news\/(\d+)\/(approve|cancel)$/);
+  if (moderationMatch && req.method === 'POST') {
+    if (!session || !session.isMain) {
+      return sendJson(res, 401, { error: 'Unauthorized' });
+    }
+    if (IS_VERCEL) {
+      return vercelWriteBlocked(res);
+    }
+
+    const id = Number(moderationMatch[1]);
+    const action = moderationMatch[2];
+    const index = articles.findIndex((item) => Number(item.id) === id);
+    if (index < 0) {
+      return notFound(res);
+    }
+
+    const existing = articles[index];
+    const now = new Date().toISOString();
+
+    const updated =
+      action === 'approve'
+        ? {
+            ...existing,
+            status: 'published',
+            approvedAt: now,
+            approvedBy: session.username,
+            rejectedAt: '',
+            rejectedBy: ''
+          }
+        : {
+            ...existing,
+            status: 'rejected',
+            isPopular: false,
+            rejectedAt: now,
+            rejectedBy: session.username
+          };
+
+    articles[index] = updated;
+    writeArticles(articles);
+    return sendJson(res, 200, toClientArticle(updated));
+  }
+
   if (url.pathname === '/api/news' && req.method === 'GET') {
     const category = (url.searchParams.get('category') || 'all').toLowerCase();
     const q = (url.searchParams.get('q') || '').trim().toLowerCase();
     const popular = ['1', 'true', 'yes', 'on'].includes(String(url.searchParams.get('popular') || '').trim().toLowerCase());
+    const includeUnpublished =
+      ['1', 'true', 'yes', 'on'].includes(String(url.searchParams.get('includeUnpublished') || '').trim().toLowerCase()) &&
+      Boolean(session);
 
-    const filteredByCategory =
-      category === 'all' ? articles : articles.filter((article) => String(article.category).toLowerCase() === category);
-    const filteredByPopularity = popular ? filteredByCategory.filter((article) => Boolean(article.isPopular)) : filteredByCategory;
+    let visible = includeUnpublished
+      ? session.isMain
+        ? articles
+        : articles.filter((article) => normalizeUsername(article.createdBy) === session.username)
+      : articles.filter(isPublishedArticle);
 
-    const filtered = q
-      ? filteredByPopularity.filter((article) => {
-          const blob = `${article.title || ''} ${article.summary || ''} ${article.content || ''}`.toLowerCase();
-          return blob.includes(q);
-        })
-      : filteredByPopularity;
+    visible = category === 'all' ? visible : visible.filter((article) => String(article.category).toLowerCase() === category);
+    if (popular) {
+      visible = visible.filter((article) => Boolean(article.isPopular));
+    }
+    if (q) {
+      visible = visible.filter((article) => {
+        const blob = `${article.title || ''} ${article.summary || ''} ${article.content || ''}`.toLowerCase();
+        return blob.includes(q);
+      });
+    }
 
-    filtered.sort((a, b) => String(b.date).localeCompare(String(a.date)));
+    visible.sort((a, b) => {
+      if (!includeUnpublished) {
+        return String(b.date).localeCompare(String(a.date));
+      }
+      const order = { pending: 0, rejected: 1, published: 2 };
+      const statusA = getArticleStatus(a);
+      const statusB = getArticleStatus(b);
+      const rankA = Object.prototype.hasOwnProperty.call(order, statusA) ? order[statusA] : 9;
+      const rankB = Object.prototype.hasOwnProperty.call(order, statusB) ? order[statusB] : 9;
+      if (rankA !== rankB) return rankA - rankB;
+      return String(b.date).localeCompare(String(a.date));
+    });
 
     return sendJson(res, 200, {
-      count: filtered.length,
+      count: visible.length,
       category,
       query: q,
-      articles: filtered.map(toClientArticle)
+      articles: visible.map(toClientArticle)
     });
   }
 
   if (url.pathname === '/api/news' && req.method === 'POST') {
-    if (!isAuthenticated(req)) {
+    if (!session) {
       return sendJson(res, 401, { error: 'Unauthorized' });
     }
     if (IS_VERCEL) {
@@ -630,11 +916,25 @@ async function handleApi(req, res, url) {
         return sendJson(res, 400, { error: normalized.error });
       }
 
+      const now = new Date().toISOString();
       const nextId = articles.reduce((max, item) => Math.max(max, Number(item.id) || 0), 0) + 1;
-      const article = { id: nextId, ...normalized };
+      const article = {
+        id: nextId,
+        ...normalized,
+        status: session.isMain ? 'published' : 'pending',
+        createdBy: session.username,
+        createdAt: now,
+        updatedAt: now,
+        approvedAt: '',
+        approvedBy: '',
+        rejectedAt: '',
+        rejectedBy: '',
+        isPopular: session.isMain ? Boolean(normalized.isPopular) : false
+      };
+
       articles.push(article);
       writeArticles(articles);
-      return sendJson(res, 201, article);
+      return sendJson(res, 201, toClientArticle(article));
     } catch (error) {
       return sendJson(res, 400, { error: error.message });
     }
@@ -652,11 +952,15 @@ async function handleApi(req, res, url) {
     if (index < 0) {
       return notFound(res);
     }
-    return sendJson(res, 200, toClientArticle(articles[index]));
+    const article = articles[index];
+    if (!canViewArticle(article, session)) {
+      return notFound(res);
+    }
+    return sendJson(res, 200, toClientArticle(article));
   }
 
   if (req.method === 'PUT') {
-    if (!isAuthenticated(req)) {
+    if (!session) {
       return sendJson(res, 401, { error: 'Unauthorized' });
     }
     if (IS_VERCEL) {
@@ -665,6 +969,11 @@ async function handleApi(req, res, url) {
 
     if (index < 0) {
       return notFound(res);
+    }
+
+    const existing = articles[index];
+    if (!canMutateArticle(existing, session)) {
+      return sendJson(res, 403, { error: 'You are not allowed to edit this story.' });
     }
 
     try {
@@ -674,19 +983,36 @@ async function handleApi(req, res, url) {
         return sendJson(res, 400, { error: normalized.error });
       }
 
-      const existing = articles[index];
-      const updated = { ...existing, ...normalized };
+      if (!session.isMain && Object.prototype.hasOwnProperty.call(normalized, 'isPopular')) {
+        delete normalized.isPopular;
+      }
+
+      const updated = {
+        ...existing,
+        ...normalized,
+        updatedAt: new Date().toISOString(),
+        updatedBy: session.username
+      };
+
+      if (!session.isMain) {
+        updated.status = 'pending';
+        updated.isPopular = false;
+        updated.approvedAt = '';
+        updated.approvedBy = '';
+        updated.rejectedAt = '';
+        updated.rejectedBy = '';
+      }
 
       articles[index] = updated;
       writeArticles(articles);
-      return sendJson(res, 200, updated);
+      return sendJson(res, 200, toClientArticle(updated));
     } catch (error) {
       return sendJson(res, 400, { error: error.message });
     }
   }
 
   if (req.method === 'DELETE') {
-    if (!isAuthenticated(req)) {
+    if (!session) {
       return sendJson(res, 401, { error: 'Unauthorized' });
     }
     if (IS_VERCEL) {
@@ -696,9 +1022,15 @@ async function handleApi(req, res, url) {
     if (index < 0) {
       return notFound(res);
     }
+
+    const existing = articles[index];
+    if (!canDeleteArticle(existing, session)) {
+      return sendJson(res, 403, { error: 'You are not allowed to delete this story.' });
+    }
+
     const deleted = articles.splice(index, 1)[0];
     writeArticles(articles);
-    return sendJson(res, 200, { deleted });
+    return sendJson(res, 200, { deleted: toClientArticle(deleted) });
   }
 
   return notFound(res);

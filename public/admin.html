@@ -69,6 +69,7 @@
     <main class="container admin-layout">
       <section class="panel">
         <h2 id="formTitle">Create New Story</h2>
+        <p id="sessionRoleMeta" class="meta"></p>
         <form id="articleForm" class="admin-form">
           <input type="hidden" id="articleId" />
 
@@ -119,7 +120,24 @@
       </section>
 
       <section class="panel">
-        <h2>Published Stories</h2>
+        <h2>Story Review</h2>
+        <div id="userManagementBlock" class="admin-settings-block" hidden>
+          <h3>Create Contributor Account</h3>
+          <label>
+            Username
+            <input id="newUsername" type="text" placeholder="reporter01" />
+          </label>
+          <label>
+            Password
+            <input id="newPassword" type="text" placeholder="Set password" />
+          </label>
+          <div class="admin-actions">
+            <button type="button" id="createUserBtn" class="btn-secondary">Create User</button>
+          </div>
+          <p id="createUserStatus" class="meta" aria-live="polite"></p>
+          <h4>Created Accounts</h4>
+          <div id="userList" class="admin-list"></div>
+        </div>
         <div class="admin-settings-block">
           <h3>Live Sound Settings</h3>
           <label>
