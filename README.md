@@ -68,19 +68,41 @@ Protected write endpoints (require login):
 
 Data is persisted in `data/articles.json`.
 
-## Deploy on Vercel
+## Deploy on Cloudflare Pages
 
-This repo now includes:
-- `api/[...route].js` for `/api/*` backend routes
-- `vercel.json` to route site files from `public/` and API calls to Vercel Functions
+This repo now includes Cloudflare Pages Functions:
+- `functions/api/[[path]].js` for `/api/*`
+- `functions/uploads/[[path]].js` for `/uploads/*`
+- `functions/_lib/cloudflare-backend.js` shared API logic
 
-Steps:
-1. Import this GitHub repo in Vercel.
-2. Keep framework as `Other`.
-3. Set environment variables:
+### 1. Create KV namespaces
+
+In Cloudflare dashboard:
+1. Go to `Workers & Pages` -> `KV`.
+2. Create one namespace for app data. Example name: `K29_DATA`.
+3. Create one namespace for sessions. Example name: `K29_SESSIONS`.
+
+### 2. Bind KV + env vars to your Pages project
+
+In your Pages project settings:
+1. Open `Settings` -> `Functions` -> `KV namespace bindings`.
+2. Add:
+   - Binding: `K29_DATA` -> namespace: your `K29_DATA`
+   - Binding: `K29_SESSIONS` -> namespace: your `K29_SESSIONS`
+3. Open `Settings` -> `Environment variables` and set:
+   - `ADMIN_USERNAME=your_admin_username`
+   - `ADMIN_PASSWORD=your_strong_password`
    - `NODE_ENV=production`
-   - `ADMIN_USERNAME=...`
-   - `ADMIN_PASSWORD=...`
-4. Deploy.
 
-Important: this Vercel build is read-only for admin write operations (`POST/PUT/DELETE`, image upload, settings update). Public read APIs and frontend pages work.
+### 3. Deploy
+
+Deploy this repo root (not only `public/`).
+
+Cloudflare will serve static files from `public/` and run Functions from `functions/`.
+
+### 4. Verify
+
+After deploy, test:
+- `https://<your-domain>/api/categories` returns JSON.
+- Login at `/admin-login.html` works.
+- Upload image from admin panel works (stored in KV and served from `/uploads/...`).
