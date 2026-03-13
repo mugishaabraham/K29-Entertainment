@@ -673,6 +673,10 @@ export async function handleUploadsRequest(context) {
 
   const blob = await readUpload(env, fileName);
   if (!blob || !blob.base64 || !blob.mimeType) {
+    // If image is not in KV, fall back to static asset serving.
+    if (typeof context.next === 'function') {
+      return context.next();
+    }
     return new Response('File not found', { status: 404 });
   }
 
