@@ -1212,6 +1212,20 @@ body.night-mode .site-footer::after {
   font-size: 0.88rem;
 }
 
+body.night-mode .btn-secondary,
+body.night-mode .btn-link {
+  background: #1a3458;
+  color: #eef5ff;
+  border: 1px solid #3b5f8c;
+}
+
+body.night-mode .btn-secondary:hover,
+body.night-mode .btn-link:hover {
+  background: #244773;
+  color: #ffffff;
+  border-color: #5f89bf;
+}
+
 .admin-list {
   display: grid;
   gap: 0.6rem;
