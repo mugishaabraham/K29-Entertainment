@@ -1226,6 +1226,50 @@ body.night-mode .btn-link:hover {
   border-color: #5f89bf;
 }
 
+/* High-contrast admin controls in dark mode */
+body.night-mode .admin-layout .btn-primary,
+body.night-mode .admin-layout .btn-secondary,
+body.night-mode .admin-layout .btn-danger,
+body.night-mode .admin-layout .btn-link,
+body.night-mode .login-layout .btn-primary,
+body.night-mode .quick-link-btn {
+  color: #ffffff !important;
+  text-shadow: none !important;
+}
+
+body.night-mode .admin-layout .btn-primary,
+body.night-mode .login-layout .btn-primary {
+  background: #ff3b30 !important;
+  border: 1px solid #ff7a73 !important;
+}
+
+body.night-mode .admin-layout .btn-secondary,
+body.night-mode .admin-layout .btn-link,
+body.night-mode .quick-link-btn {
+  background: #1554b8 !important;
+  border: 1px solid #6ea3ff !important;
+}
+
+body.night-mode .admin-layout .btn-danger {
+  background: #d91a3a !important;
+  border: 1px solid #ff8ea3 !important;
+}
+
+body.night-mode .admin-layout .btn-primary:hover,
+body.night-mode .login-layout .btn-primary:hover {
+  background: #ff534a !important;
+}
+
+body.night-mode .admin-layout .btn-secondary:hover,
+body.night-mode .admin-layout .btn-link:hover,
+body.night-mode .quick-link-btn:hover {
+  background: #1f66d9 !important;
+}
+
+body.night-mode .admin-layout .btn-danger:hover {
+  background: #f0294c !important;
+}
+
 .admin-list {
   display: grid;
   gap: 0.6rem;
