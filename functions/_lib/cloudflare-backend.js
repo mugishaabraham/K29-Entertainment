@@ -95,7 +95,8 @@ const defaultArticles = [
 ];
 
 const defaultSettings = {
-  liveAudioUrl: 'https://youtu.be/NADT8L-R1Jo?si=XNEOHwZq3reAtd10'
+  liveAudioUrl: 'https://youtu.be/NADT8L-R1Jo?si=XNEOHwZq3reAtd10',
+  liveAudioStartedAt: ''
 };
 
 const defaultUsers = [
@@ -296,14 +297,18 @@ async function saveArticles(env, articles) {
 
 async function loadSettings(env) {
   const parsed = await readJson(env, DATA_KEYS.settings, defaultSettings);
+  const liveAudioStartedAt = String((parsed && parsed.liveAudioStartedAt) || '').trim();
   return {
-    liveAudioUrl: String((parsed && parsed.liveAudioUrl) || '').trim()
+    liveAudioUrl: String((parsed && parsed.liveAudioUrl) || '').trim(),
+    liveAudioStartedAt: liveAudioStartedAt && !Number.isNaN(Date.parse(liveAudioStartedAt)) ? liveAudioStartedAt : ''
   };
 }
 
 async function saveSettings(env, settings) {
+  const liveAudioStartedAt = String((settings && settings.liveAudioStartedAt) || '').trim();
   await writeJson(env, DATA_KEYS.settings, {
-    liveAudioUrl: String((settings && settings.liveAudioUrl) || '').trim()
+    liveAudioUrl: String((settings && settings.liveAudioUrl) || '').trim(),
+    liveAudioStartedAt: liveAudioStartedAt && !Number.isNaN(Date.parse(liveAudioStartedAt)) ? liveAudioStartedAt : ''
   });
 }
 
@@ -731,12 +736,21 @@ export async function handleApiRequest(context) {
     return jsonResponse(204, {});
   }
 
-  const [articles, settings, users, session] = await Promise.all([
+  const [articles, loadedSettings, users, session] = await Promise.all([
     loadArticles(env),
     loadSettings(env),
     loadUsers(env),
     getSession(request, env)
   ]);
+  let settings = loadedSettings;
+
+  if (settings.liveAudioUrl && !settings.liveAudioStartedAt) {
+    settings = {
+      ...settings,
+      liveAudioStartedAt: new Date().toISOString()
+    };
+    await saveSettings(env, settings);
+  }
 
   if (pathname === '/api/health' && method === 'GET') {
     return jsonResponse(200, {
@@ -953,9 +967,17 @@ export async function handleApiRequest(context) {
 
     try {
       const payload = await request.json();
+      const nextLiveAudioUrl = String(payload.liveAudioUrl || '').trim();
+      const nowIso = new Date().toISOString();
+      const preserveStart =
+        nextLiveAudioUrl &&
+        nextLiveAudioUrl === settings.liveAudioUrl &&
+        settings.liveAudioStartedAt &&
+        !Number.isNaN(Date.parse(settings.liveAudioStartedAt));
       const nextSettings = {
         ...settings,
-        liveAudioUrl: String(payload.liveAudioUrl || '').trim()
+        liveAudioUrl: nextLiveAudioUrl,
+        liveAudioStartedAt: nextLiveAudioUrl ? (preserveStart ? settings.liveAudioStartedAt : nowIso) : ''
       };
       await saveSettings(env, nextSettings);
       return jsonResponse(200, nextSettings);

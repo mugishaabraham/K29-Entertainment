@@ -116,7 +116,7 @@ function ensureDataFile() {
     fs.writeFileSync(DATA_FILE, '[]', 'utf8');
   }
   if (!fs.existsSync(SETTINGS_FILE)) {
-    fs.writeFileSync(SETTINGS_FILE, JSON.stringify({ liveAudioUrl: '' }, null, 2), 'utf8');
+    fs.writeFileSync(SETTINGS_FILE, JSON.stringify({ liveAudioUrl: '', liveAudioStartedAt: '' }, null, 2), 'utf8');
   }
   if (!fs.existsSync(USERS_FILE)) {
     fs.writeFileSync(USERS_FILE, '[]', 'utf8');
@@ -144,18 +144,22 @@ function readSettings() {
   try {
     const raw = fs.readFileSync(SETTINGS_FILE, 'utf8');
     const parsed = JSON.parse(raw);
+    const liveAudioStartedAt = String((parsed && parsed.liveAudioStartedAt) || '').trim();
     return {
-      liveAudioUrl: String((parsed && parsed.liveAudioUrl) || '').trim()
+      liveAudioUrl: String((parsed && parsed.liveAudioUrl) || '').trim(),
+      liveAudioStartedAt: liveAudioStartedAt && !Number.isNaN(Date.parse(liveAudioStartedAt)) ? liveAudioStartedAt : ''
     };
   } catch (error) {
     console.error('Failed to read settings:', error.message);
-    return { liveAudioUrl: '' };
+    return { liveAudioUrl: '', liveAudioStartedAt: '' };
   }
 }
 
 function writeSettings(settings) {
+  const liveAudioStartedAt = String((settings && settings.liveAudioStartedAt) || '').trim();
   const normalized = {
-    liveAudioUrl: String((settings && settings.liveAudioUrl) || '').trim()
+    liveAudioUrl: String((settings && settings.liveAudioUrl) || '').trim(),
+    liveAudioStartedAt: liveAudioStartedAt && !Number.isNaN(Date.parse(liveAudioStartedAt)) ? liveAudioStartedAt : ''
   };
   fs.writeFileSync(SETTINGS_FILE, JSON.stringify(normalized, null, 2), 'utf8');
 }
@@ -592,8 +596,16 @@ function clearUserSessions(username) {
 
 async function handleApi(req, res, url) {
   const articles = readArticles();
-  const settings = readSettings();
+  let settings = readSettings();
   const session = getSessionFromRequest(req);
+
+  if (!IS_VERCEL && settings.liveAudioUrl && !settings.liveAudioStartedAt) {
+    settings = {
+      ...settings,
+      liveAudioStartedAt: new Date().toISOString()
+    };
+    writeSettings(settings);
+  }
 
   if (req.method === 'OPTIONS') {
     return sendJson(res, 204, {});
@@ -806,9 +818,17 @@ async function handleApi(req, res, url) {
 
     try {
       const payload = await parseJsonBody(req);
+      const nextLiveAudioUrl = String(payload.liveAudioUrl || '').trim();
+      const nowIso = new Date().toISOString();
+      const preserveStart =
+        nextLiveAudioUrl &&
+        nextLiveAudioUrl === settings.liveAudioUrl &&
+        settings.liveAudioStartedAt &&
+        !Number.isNaN(Date.parse(settings.liveAudioStartedAt));
       const nextSettings = {
         ...settings,
-        liveAudioUrl: String(payload.liveAudioUrl || '').trim()
+        liveAudioUrl: nextLiveAudioUrl,
+        liveAudioStartedAt: nextLiveAudioUrl ? (preserveStart ? settings.liveAudioStartedAt : nowIso) : ''
       };
       writeSettings(nextSettings);
       return sendJson(res, 200, nextSettings);
