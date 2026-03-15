@@ -48,9 +48,52 @@ function formatDate(dateString) {
   });
 }
 
+function getArticleUrl(articleId, useFreshToken = false) {
+  const url = new URL('/article.html', window.location.origin);
+  url.searchParams.set('id', String(articleId));
+  if (useFreshToken) {
+    url.searchParams.set('s', `${Date.now()}`);
+  }
+  return url.toString();
+}
+
+async function shareStory(article) {
+  const shareUrl = getArticleUrl(article.id, true);
+  const shareTitle = article.title || 'K29 Entertainment';
+  const shareText = article.summary || article.title || 'Read this story on K29 Entertainment';
+
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: shareTitle, text: shareText, url: shareUrl });
+      return;
+    } catch {
+      // User canceled or share unavailable.
+    }
+  }
+
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(shareUrl);
+      window.alert('Story link copied.');
+      return;
+    }
+  } catch {
+    // Fall through to prompt.
+  }
+
+  window.prompt('Copy story link:', shareUrl);
+}
+
 function readCategory() {
   const params = new URLSearchParams(window.location.search);
   return (params.get('category') || 'all').toLowerCase();
+}
+
+function formatCategoryLabel(category) {
+  return String(category || '')
+    .split('-')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
 }
 
 async function fetchJson(url) {
@@ -77,25 +120,44 @@ function renderCards(articles) {
     card.innerHTML = `
       ${article.image ? `<img src="${normalizeImageUrl(article.image)}" alt="${article.title}" loading="lazy" />` : ''}
       <div class="card-body">
-        <p class="kicker">${article.category}</p>
+        <p class="kicker">${formatCategoryLabel(article.category)}</p>
         <h3><a href="/article.html?id=${article.id}">${article.title}</a></h3>
         <p class="meta">${formatDate(article.date)} • ${article.author || 'K29 Desk'}</p>
         <p>${article.summary || ''}</p>
-        <a class="read-link" href="/article.html?id=${article.id}">Read Full Story</a>
+        <div class="card-actions">
+          <a class="read-link" href="/article.html?id=${article.id}">Read Full Story</a>
+          <button type="button" class="story-action-btn" data-share-story-id="${article.id}" aria-label="Share story" title="Share story">Share</button>
+          <a class="story-action-btn" href="/article.html?id=${article.id}#comments" aria-label="Comment on story" title="Comment on story">Comment</a>
+        </div>
       </div>
     `;
     categoryGrid.appendChild(card);
   });
 }
 
+function setupStoryCardActions(articles) {
+  if (!categoryGrid) return;
+  categoryGrid.addEventListener('click', (event) => {
+    const shareBtn = event.target.closest('[data-share-story-id]');
+    if (!shareBtn) return;
+    event.preventDefault();
+    const id = Number(shareBtn.getAttribute('data-share-story-id'));
+    if (!id) return;
+    const article = articles.find((item) => Number(item.id) === id);
+    if (!article) return;
+    shareStory(article);
+  });
+}
+
 async function init() {
   try {
     const category = readCategory();
-    categoryTitle.textContent = category === 'all' ? 'All Categories' : `${category} News`;
+    categoryTitle.textContent = category === 'all' ? 'All Categories' : `${formatCategoryLabel(category)} News`;
 
     const data = await fetchJson(`/api/news?category=${encodeURIComponent(category)}`);
     resultsMeta.textContent = `${data.count} stor${data.count === 1 ? 'y' : 'ies'}`;
     renderCards(data.articles);
+    setupStoryCardActions(Array.isArray(data.articles) ? data.articles : []);
   } catch (error) {
     categoryGrid.innerHTML = `<article class="panel card"><div class="card-body"><h3>Error</h3><p>${error.message}</p></div></article>`;
   }

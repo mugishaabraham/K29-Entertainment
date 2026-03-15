@@ -20,7 +20,7 @@ const newPasswordInput = document.getElementById('newPassword');
 const createUserBtn = document.getElementById('createUserBtn');
 const createUserStatus = document.getElementById('createUserStatus');
 const userList = document.getElementById('userList');
-const preferredCategoryOrder = ['all', 'entertainment', 'politics', 'music', 'sports', 'religion', 'movies'];
+const preferredCategoryOrder = ['all', 'entertainment', 'politics', 'music', 'sports', 'religion', 'movies', 'did-you-know'];
 
 const fields = {
   id: document.getElementById('articleId'),
@@ -253,6 +253,13 @@ function sortCategories(categories) {
   });
 }
 
+function formatCategoryLabel(category) {
+  return String(category || '')
+    .split('-')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
 function setCategoryOptions(categories, selected = '') {
   const existingValues = Array.from(fields.category.options)
     .map((option) => String(option.value || '').trim().toLowerCase())
@@ -266,7 +273,7 @@ function setCategoryOptions(categories, selected = '') {
   sorted.forEach((category) => {
     const option = document.createElement('option');
     option.value = category;
-    option.textContent = category.charAt(0).toUpperCase() + category.slice(1);
+    option.textContent = formatCategoryLabel(category);
     fields.category.appendChild(option);
   });
   fields.category.value = selected || '';
@@ -294,7 +301,7 @@ function fillForm(article) {
   if (selectedCategory && !Array.from(fields.category.options).some((option) => option.value === selectedCategory)) {
     const option = document.createElement('option');
     option.value = selectedCategory;
-    option.textContent = selectedCategory.charAt(0).toUpperCase() + selectedCategory.slice(1);
+    option.textContent = formatCategoryLabel(selectedCategory);
     fields.category.appendChild(option);
   }
   fields.category.value = selectedCategory;

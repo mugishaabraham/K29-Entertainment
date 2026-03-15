@@ -2,6 +2,9 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+
+const PBKDF2_ITERATIONS = 100000;
+const LEGACY_PBKDF2_ITERATIONS = 120000;
 const { URL } = require('url');
 
 const PORT = process.env.PORT || 3000;
@@ -19,7 +22,7 @@ const sessions = new Map();
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 const IS_VERCEL = process.env.VERCEL === '1';
 
-const baseCategories = ['all', 'politics', 'music', 'entertainment', 'sports', 'religion', 'movies'];
+const baseCategories = ['all', 'politics', 'music', 'entertainment', 'sports', 'religion', 'movies', 'did-you-know'];
 
 const mimeTypes = {
   '.html': 'text/html',
@@ -182,20 +185,41 @@ function normalizeUsername(value) {
 
 function hashPassword(password) {
   const salt = crypto.randomBytes(16).toString('hex');
-  const hash = crypto.pbkdf2Sync(String(password), salt, 120000, 64, 'sha512').toString('hex');
-  return `${salt}:${hash}`;
+  const hash = crypto.pbkdf2Sync(String(password), salt, PBKDF2_ITERATIONS, 64, 'sha512').toString('hex');
+  return `${salt}:${PBKDF2_ITERATIONS}:${hash}`;
 }
 
 function verifyPassword(password, stored) {
   const raw = String(stored || '');
-  const [salt, savedHash] = raw.split(':');
-  if (!salt || !savedHash) return false;
-  const hash = crypto.pbkdf2Sync(String(password), salt, 120000, 64, 'sha512').toString('hex');
-  try {
-    return crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(savedHash, 'hex'));
-  } catch {
-    return false;
+  const parts = raw.split(':');
+  if (parts.length === 3) {
+    const [salt, iterationsRaw, savedHash] = parts;
+    const iterations = Number(iterationsRaw);
+    if (!salt || !savedHash || !Number.isFinite(iterations) || iterations <= 0) return false;
+    const hash = crypto.pbkdf2Sync(String(password), salt, iterations, 64, 'sha512').toString('hex');
+    try {
+      return crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(savedHash, 'hex'));
+    } catch {
+      return false;
+    }
   }
+  if (parts.length === 2) {
+    const [salt, savedHash] = parts;
+    if (!salt || !savedHash) return false;
+    const currentHash = crypto.pbkdf2Sync(String(password), salt, PBKDF2_ITERATIONS, 64, 'sha512').toString('hex');
+    try {
+      if (crypto.timingSafeEqual(Buffer.from(currentHash, 'hex'), Buffer.from(savedHash, 'hex'))) return true;
+    } catch {
+      return false;
+    }
+    const legacyHash = crypto.pbkdf2Sync(String(password), salt, LEGACY_PBKDF2_ITERATIONS, 64, 'sha512').toString('hex');
+    try {
+      return crypto.timingSafeEqual(Buffer.from(legacyHash, 'hex'), Buffer.from(savedHash, 'hex'));
+    } catch {
+      return false;
+    }
+  }
+  return false;
 }
 
 function getCategories(articles) {
@@ -525,6 +549,14 @@ function getArticleStatus(article) {
 
 function isPublishedArticle(article) {
   return getArticleStatus(article) === 'published';
+}
+
+function articleSortTimestamp(article) {
+  const createdAt = Date.parse(String((article && article.createdAt) || '').trim());
+  if (Number.isFinite(createdAt)) return createdAt;
+  const publishedAt = Date.parse(String((article && article.date) || '').trim());
+  if (Number.isFinite(publishedAt)) return publishedAt;
+  return Number(article && article.id) || 0;
 }
 
 function canViewArticle(article, session) {
@@ -881,8 +913,11 @@ async function handleApi(req, res, url) {
     }
 
     visible.sort((a, b) => {
+      if (Boolean(a && a.isPopular) !== Boolean(b && b.isPopular)) {
+        return Boolean(b && b.isPopular) - Boolean(a && a.isPopular);
+      }
       if (!includeUnpublished) {
-        return String(b.date).localeCompare(String(a.date));
+        return articleSortTimestamp(b) - articleSortTimestamp(a);
       }
       const order = { pending: 0, rejected: 1, published: 2 };
       const statusA = getArticleStatus(a);
@@ -890,7 +925,7 @@ async function handleApi(req, res, url) {
       const rankA = Object.prototype.hasOwnProperty.call(order, statusA) ? order[statusA] : 9;
       const rankB = Object.prototype.hasOwnProperty.call(order, statusB) ? order[statusB] : 9;
       if (rankA !== rankB) return rankA - rankB;
-      return String(b.date).localeCompare(String(a.date));
+      return articleSortTimestamp(b) - articleSortTimestamp(a);
     });
 
     return sendJson(res, 200, {
@@ -1044,6 +1079,135 @@ function safeJoin(base, target) {
   return targetPath;
 }
 
+function escapeHtml(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function escapeAttr(value) {
+  return escapeHtml(value).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function getSiteOrigin(req) {
+  const forwardedProto = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim();
+  const proto = forwardedProto || (IS_PRODUCTION ? 'https' : 'http');
+  const host = String(req.headers.host || '').trim();
+  return host ? `${proto}://${host}` : '';
+}
+
+function normalizeArticleImageUrl(rawImage) {
+  const raw = String(rawImage || '').trim().replace(/^['"\s]+|['"\s]+$/g, '');
+  if (!raw) return '';
+
+  try {
+    const parsed = new URL(raw);
+    const host = parsed.hostname.toLowerCase();
+    if ((parsed.protocol === 'http:' || parsed.protocol === 'https:') && host === 'uploads') {
+      const p = parsed.pathname.startsWith('/') ? parsed.pathname : `/${parsed.pathname}`;
+      return `/uploads${p}`;
+    }
+    return raw;
+  } catch {
+    if (raw.startsWith('/uploads/')) return raw;
+    if (raw.startsWith('uploads/')) return `/${raw}`;
+    if (raw.startsWith('./uploads/')) return `/${raw.slice(2)}`;
+    const uploadMatch = raw.match(/(?:^|\/)(uploads\/[^\s?#]+)/i);
+    if (uploadMatch) {
+      return `/${uploadMatch[1].replace(/^\/+/, '')}`;
+    }
+    return raw;
+  }
+}
+
+function toAbsoluteUrl(origin, rawUrl) {
+  const value = String(rawUrl || '').trim();
+  if (!value) return '';
+  try {
+    return new URL(value, origin || undefined).toString();
+  } catch {
+    return value;
+  }
+}
+
+function summarizeArticle(article) {
+  const summary = String((article && article.summary) || '').trim();
+  if (summary) return summary.slice(0, 220);
+  const content = String((article && article.content) || '').replace(/\s+/g, ' ').trim();
+  return content ? content.slice(0, 220) : 'Latest stories from K29 Entertainment.';
+}
+
+function buildArticleMeta(req, article, id) {
+  const origin = getSiteOrigin(req);
+  const pageUrl = toAbsoluteUrl(origin, `/article.html?id=${encodeURIComponent(String(id))}`);
+  const imageCandidate = normalizeArticleImageUrl(article.image || '');
+  const imageUrl = toAbsoluteUrl(origin, imageCandidate || '/logo.jpeg');
+  const title = String((article && article.title) || 'K29 Entertainment - Story').trim() || 'K29 Entertainment - Story';
+  const description = summarizeArticle(article);
+  const publishedTime = String((article && article.date) || '').trim();
+
+  const tags = [
+    `<meta name="description" content="${escapeAttr(description)}" />`,
+    `<meta property="og:type" content="article" />`,
+    `<meta property="og:site_name" content="K29 Entertainment" />`,
+    `<meta property="og:title" content="${escapeAttr(title)}" />`,
+    `<meta property="og:description" content="${escapeAttr(description)}" />`,
+    `<meta property="og:url" content="${escapeAttr(pageUrl)}" />`,
+    `<meta property="og:image" content="${escapeAttr(imageUrl)}" />`,
+    `<meta name="twitter:card" content="summary_large_image" />`,
+    `<meta name="twitter:title" content="${escapeAttr(title)}" />`,
+    `<meta name="twitter:description" content="${escapeAttr(description)}" />`,
+    `<meta name="twitter:image" content="${escapeAttr(imageUrl)}" />`
+  ];
+
+  if (publishedTime) {
+    tags.push(`<meta property="article:published_time" content="${escapeAttr(publishedTime)}" />`);
+  }
+
+  return {
+    title: `${title} - K29 Entertainment`,
+    tags: tags.join('\n    ')
+  };
+}
+
+function injectArticleMeta(html, meta) {
+  const safeTitle = `<title>${escapeHtml(meta.title)}</title>`;
+  let out = html.replace(/<title>[\s\S]*?<\/title>/i, safeTitle);
+  if (out === html) {
+    out = out.replace(/<head[^>]*>/i, (match) => `${match}\n    ${safeTitle}`);
+  }
+  return out.replace(/<\/head>/i, `    ${meta.tags}\n  </head>`);
+}
+
+function serveArticleHtml(req, res, parsedUrl) {
+  const id = Number(parsedUrl.searchParams.get('id'));
+  if (!id) {
+    return serveStatic(req, res, parsedUrl.pathname);
+  }
+
+  const articles = readArticles();
+  const article = articles.find((item) => Number(item.id) === id && isPublishedArticle(item));
+  if (!article) {
+    return serveStatic(req, res, parsedUrl.pathname);
+  }
+
+  const articlePath = safeJoin(PUBLIC_DIR, '/article.html');
+  if (!articlePath) {
+    return sendText(res, 500, 'Server error');
+  }
+
+  fs.readFile(articlePath, 'utf8', (err, html) => {
+    if (err) {
+      return sendText(res, err.code === 'ENOENT' ? 404 : 500, err.code === 'ENOENT' ? 'File not found' : 'Server error');
+    }
+    const meta = buildArticleMeta(req, article, id);
+    const output = injectArticleMeta(html, meta);
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    return res.end(output);
+  });
+}
+
 function serveStatic(req, res, urlPath) {
   const requested = urlPath === '/' ? '/index.html' : urlPath;
   let decodedRequested;
@@ -1090,6 +1254,10 @@ async function requestHandler(req, res) {
 
     if (parsedUrl.pathname.startsWith('/api/')) {
       return await handleApi(req, res, parsedUrl);
+    }
+
+    if (req.method === 'GET' && parsedUrl.pathname === '/article.html') {
+      return serveArticleHtml(req, res, parsedUrl);
     }
 
     return serveStatic(req, res, parsedUrl.pathname);

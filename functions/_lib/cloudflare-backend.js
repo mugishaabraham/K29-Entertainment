@@ -3,6 +3,8 @@ const ADMIN_PASSWORD_DEFAULT = 'gisenyi@12';
 const SESSION_COOKIE_NAME = 'k29_admin_session';
 const SESSION_TTL_SECONDS = 60 * 60 * 8;
 const SESSION_TTL_MS = SESSION_TTL_SECONDS * 1000;
+const PBKDF2_ITERATIONS = 100000;
+const LEGACY_PBKDF2_ITERATIONS = 120000;
 
 const DATA_KEYS = {
   articles: 'k29:data:articles',
@@ -10,7 +12,7 @@ const DATA_KEYS = {
   users: 'k29:data:users'
 };
 
-const baseCategories = ['all', 'politics', 'music', 'entertainment', 'sports', 'religion', 'movies'];
+const baseCategories = ['all', 'politics', 'music', 'entertainment', 'sports', 'religion', 'movies', 'did-you-know'];
 
 const uploadExtensionsByMime = {
   'image/png': '.png',
@@ -204,13 +206,17 @@ function base64ToBytes(base64) {
 }
 
 async function deriveHash(password, saltBytes) {
+  return deriveHashWithIterations(password, saltBytes, PBKDF2_ITERATIONS);
+}
+
+async function deriveHashWithIterations(password, saltBytes, iterations) {
   const encoder = new TextEncoder();
   const keyMaterial = await crypto.subtle.importKey('raw', encoder.encode(String(password)), 'PBKDF2', false, ['deriveBits']);
   const bits = await crypto.subtle.deriveBits(
     {
       name: 'PBKDF2',
       salt: saltBytes,
-      iterations: 120000,
+      iterations,
       hash: 'SHA-512'
     },
     keyMaterial,
@@ -222,15 +228,29 @@ async function deriveHash(password, saltBytes) {
 async function hashPassword(password) {
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const hash = await deriveHash(password, salt);
-  return `${bufferToHex(salt)}:${hash}`;
+  return `${bufferToHex(salt)}:${PBKDF2_ITERATIONS}:${hash}`;
 }
 
 async function verifyPassword(password, stored) {
   const raw = String(stored || '');
-  const [saltHex, hashHex] = raw.split(':');
-  if (!saltHex || !hashHex) return false;
-  const derived = await deriveHash(password, hexToUint8Array(saltHex));
-  return secureEqual(derived, hashHex);
+  const parts = raw.split(':');
+  if (parts.length === 3) {
+    const [saltHex, iterationsRaw, hashHex] = parts;
+    const iterations = Number(iterationsRaw);
+    if (!saltHex || !hashHex || !Number.isFinite(iterations) || iterations <= 0) return false;
+    const derived = await deriveHashWithIterations(password, hexToUint8Array(saltHex), iterations);
+    return secureEqual(derived, hashHex);
+  }
+  if (parts.length === 2) {
+    const [saltHex, hashHex] = parts;
+    if (!saltHex || !hashHex) return false;
+    const saltBytes = hexToUint8Array(saltHex);
+    const derivedCurrent = await deriveHashWithIterations(password, saltBytes, PBKDF2_ITERATIONS);
+    if (secureEqual(derivedCurrent, hashHex)) return true;
+    const derivedLegacy = await deriveHashWithIterations(password, saltBytes, LEGACY_PBKDF2_ITERATIONS);
+    return secureEqual(derivedLegacy, hashHex);
+  }
+  return false;
 }
 
 function getDataNamespace(env) {
@@ -510,6 +530,14 @@ function getArticleStatus(article) {
 
 function isPublishedArticle(article) {
   return getArticleStatus(article) === 'published';
+}
+
+function articleSortTimestamp(article) {
+  const createdAt = Date.parse(String((article && article.createdAt) || '').trim());
+  if (Number.isFinite(createdAt)) return createdAt;
+  const publishedAt = Date.parse(String((article && article.date) || '').trim());
+  if (Number.isFinite(publishedAt)) return publishedAt;
+  return Number(article && article.id) || 0;
 }
 
 function canViewArticle(article, session) {
@@ -1024,8 +1052,11 @@ export async function handleApiRequest(context) {
     }
 
     visible.sort((a, b) => {
+      if (Boolean(a && a.isPopular) !== Boolean(b && b.isPopular)) {
+        return Boolean(b && b.isPopular) - Boolean(a && a.isPopular);
+      }
       if (!includeUnpublished) {
-        return String(b.date).localeCompare(String(a.date));
+        return articleSortTimestamp(b) - articleSortTimestamp(a);
       }
       const order = { pending: 0, rejected: 1, published: 2 };
       const statusA = getArticleStatus(a);
@@ -1033,7 +1064,7 @@ export async function handleApiRequest(context) {
       const rankA = Object.prototype.hasOwnProperty.call(order, statusA) ? order[statusA] : 9;
       const rankB = Object.prototype.hasOwnProperty.call(order, statusB) ? order[statusB] : 9;
       if (rankA !== rankB) return rankA - rankB;
-      return String(b.date).localeCompare(String(a.date));
+      return articleSortTimestamp(b) - articleSortTimestamp(a);
     });
 
     return jsonResponse(200, {

@@ -33,6 +33,7 @@
       categorySports: 'Sports',
       categoryReligion: 'Religion',
       categoryMovies: 'Movies',
+      categoryDidYouKnow: 'Did You Know',
       latestNews: 'Latest News',
       mostPopular: 'Most Popular',
       noPopularNews: 'No popular stories selected yet.'
@@ -67,6 +68,7 @@
       categorySports: 'Siporo',
       categoryReligion: 'Iyobokamana',
       categoryMovies: 'Filime',
+      categoryDidYouKnow: 'Wari ubizi',
       latestNews: 'Amakuru agezweho',
       mostPopular: 'Izikunzwe Cyane',
       noPopularNews: 'Nta nkuru zatoranyijwe nk\'izikunzwe cyane.'

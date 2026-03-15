@@ -6,7 +6,8 @@
     <title>K29 Entertainment - Story</title>
     <link rel="icon" type="image/jpeg" href="/logo.jpeg" />
     <link rel="shortcut icon" href="/logo.jpeg" />
-    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/styles.css?v=20260314a" />
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2622257988391943" crossorigin="anonymous"></script>
   </head>
   <body>
     <header class="site-header">
@@ -51,10 +52,19 @@
               <option value="en" data-i18n="langEnglish">English</option>
               <option value="rw" data-i18n="langKinyarwanda">Kinyarwanda</option>
             </select>
+            <a class="header-icon-link" href="/" aria-label="Home" title="Home">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 3.4 3.2 10.6a.9.9 0 0 0 .6 1.6H5v7.2c0 .5.4.9.9.9h4.8v-5h2.6v5h4.8c.5 0 .9-.4.9-.9v-7.2h1.2a.9.9 0 0 0 .6-1.6L12 3.4Z" />
+              </svg>
+            </a>
+            <a class="admin-icon-link" href="/admin-login.html" aria-label="Admin Panel" title="Admin Panel">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 12a4.5 4.5 0 1 0-4.5-4.5A4.5 4.5 0 0 0 12 12Zm0 2.2c-4 0-7.2 2.4-7.2 5.3a.8.8 0 0 0 .8.8h12.8a.8.8 0 0 0 .8-.8c0-2.9-3.2-5.3-7.2-5.3Z" />
+              </svg>
+            </a>
           </div>
           <div class="quick-links">
             <a class="quick-link" href="/" data-i18n="home">Home</a>
-            <a class="quick-link" href="/admin-login.html" data-i18n="adminPanel">Admin Panel</a>
           </div>
         </div>
       </div>
@@ -68,6 +78,15 @@
 
     <main class="container single-column story-layout">
       <article id="story" class="panel story"></article>
+      <section id="comments" class="panel comments-panel" aria-label="Comments">
+        <h2>Comments</h2>
+        <form id="commentForm" class="comment-form">
+          <input id="commentName" type="text" placeholder="Your name" maxlength="60" />
+          <textarea id="commentText" placeholder="Write a comment..." maxlength="500" required></textarea>
+          <button type="submit">Post Comment</button>
+        </form>
+        <div id="commentsList" class="comments-list" aria-live="polite"></div>
+      </section>
     </main>
 
     <footer class="site-footer">
@@ -99,14 +118,14 @@
 
         <div class="footer-bottom">
           
-          <p class="footer-tagline">Aho kubura amakuru wabura umunyu.</p>
+          <p class="footer-tagline">Copyright © 2026 K29 Entertainment.</p>
         </div>
       </div>
     </footer>
 
-    <script src="/clock.js"></script>
-    <script src="/ui.js"></script>
-    <script src="/i18n.js"></script>
-    <script src="/article.js"></script>
+    <script src="/clock.js?v=20260314a"></script>
+    <script src="/ui.js?v=20260314a"></script>
+    <script src="/i18n.js?v=20260314a"></script>
+    <script src="/article.js?v=20260314a"></script>
   </body>
 </html>

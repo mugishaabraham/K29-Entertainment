@@ -1,4 +1,17 @@
 const storyEl = document.getElementById('story');
+const commentForm = document.getElementById('commentForm');
+const commentNameInput = document.getElementById('commentName');
+const commentTextInput = document.getElementById('commentText');
+const commentsList = document.getElementById('commentsList');
+
+function escapeHtml(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 
 function normalizeImageUrl(url) {
   const raw = String(url || '').trim().replace(/^['"\s]+|['"\s]+$/g, '');
@@ -49,6 +62,76 @@ function formatDate(dateString) {
 function readId() {
   const params = new URLSearchParams(window.location.search);
   return Number(params.get('id'));
+}
+
+function commentsStorageKey(articleId) {
+  return `k29_comments_${articleId}`;
+}
+
+function loadComments(articleId) {
+  if (!articleId) return [];
+  try {
+    const raw = localStorage.getItem(commentsStorageKey(articleId));
+    const parsed = JSON.parse(raw || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveComments(articleId, comments) {
+  if (!articleId) return;
+  localStorage.setItem(commentsStorageKey(articleId), JSON.stringify(comments));
+}
+
+function renderComments(articleId) {
+  if (!commentsList) return;
+  const comments = loadComments(articleId);
+  if (!comments.length) {
+    commentsList.innerHTML = '<p class="comments-empty">No comments yet. Be the first to comment.</p>';
+    return;
+  }
+
+  commentsList.innerHTML = comments
+    .slice()
+    .reverse()
+    .map((item) => {
+      const name = String(item.name || 'Anonymous');
+      const text = String(item.text || '');
+      const time = item.createdAt ? formatDate(item.createdAt) : '';
+      return `
+        <article class="comment-item">
+          <header>
+            <strong>${escapeHtml(name)}</strong>
+            <span>${escapeHtml(time)}</span>
+          </header>
+          <p>${escapeHtml(text)}</p>
+        </article>
+      `;
+    })
+    .join('');
+}
+
+function setupComments(articleId) {
+  renderComments(articleId);
+  if (!commentForm || !commentTextInput || !commentsList) return;
+
+  commentForm.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const name = String((commentNameInput && commentNameInput.value) || '').trim() || 'Anonymous';
+    const text = String(commentTextInput.value || '').trim();
+    if (!text) return;
+
+    const comments = loadComments(articleId);
+    comments.push({
+      name,
+      text,
+      createdAt: new Date().toISOString()
+    });
+    saveComments(articleId, comments);
+    commentTextInput.value = '';
+    renderComments(articleId);
+  });
 }
 
 async function fetchJson(url) {
@@ -136,6 +219,7 @@ async function init() {
 
     const article = await fetchJson(`/api/news/${id}`);
     renderStory(article);
+    setupComments(id);
   } catch (error) {
     storyEl.innerHTML = `<h2>Unable to load story</h2><p>${error.message}</p>`;
   }
